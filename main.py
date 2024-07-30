@@ -31,8 +31,8 @@ def draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i):
 
 def draw_circle(img_contour, cx, cy, radius):
     cv2.circle(img_contour, (cx, cy), radius, (255, 0, 0), 2)
-    coord_text = f"({cx},{cy})"
-    cv2.putText(img_contour, coord_text, (cx + radius + 10, cy - radius - 10), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 0), 1)
+    # coord_text = f"({cx},{cy})" cv2.putText(img_contour, coord_text, (cx + radius + 10, cy - radius - 10),
+    # cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 0), 1)
 
 
 def is_moves_left(board):
@@ -213,7 +213,7 @@ def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area
 
 def circle_detection(img, img_contour, max_area_limit, min_area_limit):
     circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, dp=1.2, minDist=20,
-                               param1=50, param2=30, minRadius=5, maxRadius=50)
+                               param1=50, param2=50, minRadius=5, maxRadius=50)
 
     if circles is not None:
         circles = np.round(circles[0, :]).astype("int")
@@ -246,7 +246,7 @@ def main():
     for row in board:
         print(row)
 
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
     scale = 1.3
     max_area_limit = 90000
     min_area_limit = 30
