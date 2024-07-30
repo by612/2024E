@@ -26,11 +26,13 @@ def draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i):
     cv2.drawMarker(img_contour, (cx, cy), (0, 255, 0), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=2)
     coord_text = f"({cx},{cy})"
     cv2.putText(img_contour, coord_text, (cx + 10, cy - 10), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 0), 1)
-    cv2.putText(img_contour, f"{i + 1}", (cx - 10, cy - 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 255), 1)
+    cv2.putText(img_contour, f"{i + 1}", (cx - 10, cy - 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 255), 2)
 
 
 def draw_circle(img_contour, cx, cy, radius):
-    cv2.circle(img_contour, (cx, cy), radius, (255, 0, 0), 1)
+    cv2.circle(img_contour, (cx, cy), radius, (255, 0, 0), 2)
+    coord_text = f"({cx},{cy})"
+    cv2.putText(img_contour, coord_text, (cx + radius + 10, cy - radius - 10), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 0), 1)
 
 
 def is_moves_left(board):
@@ -149,12 +151,8 @@ def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area
 
         if CornerNum == 4:
             cross_centers.append((cx, cy, x, y, w, h, approx))
-        elif CornerNum > 4:
-            # 认为是圆形
-            radius = int(perimeter / (2 * np.pi))
-            draw_circle(img_contour, cx, cy, radius)
 
-    if len(cross_centers) > 20:
+    if len(cross_centers) == 9:
         centers = np.array([c[:2] for c in cross_centers])
         rect = np.zeros((9, 2), dtype="float32")
 
@@ -213,15 +211,44 @@ def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area
             draw_rectangle(img_contour, cx, cy, x1, y1, w, h, approx, i)
 
 
+def circle_detection(img, img_contour, max_area_limit, min_area_limit):
+    circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, dp=1.2, minDist=20,
+                               param1=50, param2=30, minRadius=5, maxRadius=50)
+
+    if circles is not None:
+        circles = np.round(circles[0, :]).astype("int")
+
+        filtered_circles = []
+        for (x, y, r) in circles:
+            area = np.pi * (r ** 2)
+            if min_area_limit <= area <= max_area_limit:
+                filtered_circles.append((x, y, r))
+
+        # 合并重叠的圆形
+        merged_circles = []
+        for (x, y, r) in filtered_circles:
+            merged = False
+            for i, (mx, my, mr) in enumerate(merged_circles):
+                if np.sqrt((x - mx) ** 2 + (y - my) ** 2) < (r + mr) / 2:
+                    merged_circles[i] = (int((x + mx) / 2), int((y + my) / 2), int((r + mr) / 2))
+                    merged = True
+                    break
+            if not merged:
+                merged_circles.append((x, y, r))
+
+        for (x, y, r) in merged_circles:
+            draw_circle(img_contour, x, y, r)
+
+
 def main():
     board = initialize_board('X')
     print('初始棋盘状态：')
     for row in board:
         print(row)
 
-    cap = cv2.VideoCapture(0)
-    scale = 1.6
-    max_area_limit = 50000
+    cap = cv2.VideoCapture(1)
+    scale = 1.3
+    max_area_limit = 90000
     min_area_limit = 30
     prev_centers = deque(maxlen=10)
 
@@ -234,7 +261,9 @@ def main():
         imgGray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         imgBlur = cv2.GaussianBlur(imgGray, (5, 5), 1)
         imgCanny = cv2.Canny(imgBlur, 50, 150)
+
         rectangle_detection(imgCanny, imgContour, prev_centers, max_area_limit, min_area_limit)
+        circle_detection(imgCanny, imgContour, max_area_limit, min_area_limit)
 
         imgContour = resize_image(imgContour, scale)
         cv2.imshow("Shape Detection", imgContour)
