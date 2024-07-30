@@ -26,13 +26,11 @@ def draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i):
     cv2.drawMarker(img_contour, (cx, cy), (0, 255, 0), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=2)
     coord_text = f"({cx},{cy})"
     cv2.putText(img_contour, coord_text, (cx + 10, cy - 10), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 0), 1)
-    cv2.putText(img_contour, f"{i + 1}", (cx - 10, cy - 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 255), 2)
+    cv2.putText(img_contour, f"{i + 1}", (cx - 10, cy - 20), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 255), 1)
 
 
 def draw_circle(img_contour, cx, cy, radius):
-    cv2.circle(img_contour, (cx, cy), radius, (255, 0, 0), 2)
-    coord_text = f"({cx},{cy})"
-    cv2.putText(img_contour, coord_text, (cx + radius + 10, cy - radius - 10), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 0), 1)
+    cv2.circle(img_contour, (cx, cy), radius, (255, 0, 0), 1)
 
 
 def is_moves_left(board):
@@ -156,7 +154,7 @@ def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area
             radius = int(perimeter / (2 * np.pi))
             draw_circle(img_contour, cx, cy, radius)
 
-    if len(cross_centers) == 9:
+    if len(cross_centers) > 20:
         centers = np.array([c[:2] for c in cross_centers])
         rect = np.zeros((9, 2), dtype="float32")
 
@@ -221,9 +219,9 @@ def main():
     for row in board:
         print(row)
 
-    cap = cv2.VideoCapture(1)
-    scale = 1.3
-    max_area_limit = 90000
+    cap = cv2.VideoCapture(0)
+    scale = 1.6
+    max_area_limit = 50000
     min_area_limit = 30
     prev_centers = deque(maxlen=10)
 
