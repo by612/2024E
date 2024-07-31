@@ -117,12 +117,14 @@ def inverse_kinematics(x, y):
 # arm_control(6, 1000,180,10,45)
 l1 = 4200
 x1 = 17
-y1 = 17.8
-l2 = 3550
-x2 = 14
-l3 = 2900
-x3 = 11.2
-y3 = 17
+l2 = l1-650
+x2 = x1-3
+l3 = l1-1300
+x3 = x1-5.8
+down = 17 # down to 17cm
+up = 16 #put at 16cm
+l4 = l1 + 1200
+l5 = l3 - 1200
 
 arm_control(1, 0, 180, 10, 45)
 time.sleep(2)
@@ -153,15 +155,13 @@ def slow_up(x, y, i):
     time.sleep(0.5)
 
 
-def xi(l, x):
-    down = 17  # down to 17cm
+def xi(l, x): 
     slow(l, x, down)
     sii(1)
     slow_up(l, x, down)
 
 
 def fang(l, x):
-    up = 16
     slow(l, x, up)
     sii(0)
     slow_up(l, x, up)
@@ -169,8 +169,20 @@ def fang(l, x):
     time.sleep(0.5)
 
 
-def question2(x):
-    xi(l1, x1)
+def question2(x,n):
+    
+    if(n==1):
+        xi(l5, x1)
+    elif(n==2):
+        xi(l5, x2)
+    elif(n==3):
+        xi(l4, x1)    
+    elif(n==4):
+        xi(l4, x2)
+    else:
+        print("out of 4 times")
+        return 0
+        
     if (x == 1):
         fang(l3, x1)
         print("放的位置是1")

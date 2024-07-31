@@ -8,14 +8,14 @@ KEY_SUB = 27
 KEY_ENTER = 22
 BOUNCE_TIME = 300  # 按键消抖时间，单位为毫秒
 
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(KEY_PLUS, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(KEY_SUB, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(KEY_ENTER, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
 
 def select_grid():
     # 设置GPIO模式
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(KEY_PLUS, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(KEY_SUB, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(KEY_ENTER, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
     current_grid = 0
     grid_selected = Event()
 
@@ -34,8 +34,13 @@ def select_grid():
     def enter_callback(channel):
         nonlocal current_grid
         print(f"选择的棋格: {current_grid}")
-        question2(current_grid)  # 调用对应的机械臂操作函数
+        # question2(current_grid)  # 调用对应的机械臂操作函数
         grid_selected.set()
+
+    # 清理旧的事件检测设置
+    GPIO.remove_event_detect(KEY_PLUS)
+    GPIO.remove_event_detect(KEY_SUB)
+    GPIO.remove_event_detect(KEY_ENTER)
 
     # 设置按键事件检测，并添加消抖时间
     GPIO.add_event_detect(KEY_PLUS, GPIO.FALLING, callback=plus_callback, bouncetime=BOUNCE_TIME)
@@ -46,9 +51,7 @@ def select_grid():
 
     try:
         grid_selected.wait()  # 等待用户按下KEY_ENTER键
+        return current_grid
     except KeyboardInterrupt:
         print("\n被用户中断的程序")
-    finally:
-        GPIO.cleanup()
 
-    return current_grid
