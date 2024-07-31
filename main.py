@@ -1,9 +1,17 @@
 import cv2
 import numpy as np
+import threading
 from collections import deque
+from control import arm_point
+import time
 
 PLAYER = 'X'
 OPPONENT = 'O'
+
+# 全局变量，用于在两个线程之间共享数据
+rect_centers = deque(maxlen=10)
+lock = threading.Lock()
+condition = threading.Condition(lock)
 
 
 def initialize_board(start_player='X'):
@@ -31,8 +39,6 @@ def draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i):
 
 def draw_circle(img_contour, cx, cy, radius):
     cv2.circle(img_contour, (cx, cy), radius, (255, 0, 0), 2)
-    # coord_text = f"({cx},{cy})" cv2.putText(img_contour, coord_text, (cx + radius + 10, cy - radius - 10),
-    # cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 0), 1)
 
 
 def is_moves_left(board):
@@ -189,12 +195,20 @@ def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area
             rect[5] = others[idx_r]
             rect[7] = others[idx_b]
 
+            # 获取编号为5的矩形的中心坐标
+            cx_5, cy_5 = rect[4]  # rect[4] 对应编号为5的矩形
+
             for i in range(9):
                 cx, cy = rect[i]
+                rel_cx, rel_cy = cx - cx_5, cy - cy_5  # 相对坐标
                 for c in cross_centers:
                     if c[0] == cx and c[1] == cy:
                         x, y, w, h, approx = c[2:]
                         draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i)
+                        # 将矩形中心坐标加入共享队列
+                        with lock:
+                            rect_centers.append((rel_cx, rel_cy))
+                            condition.notify()
                         break
         else:
             print("> 45 degree")
@@ -209,6 +223,10 @@ def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area
             cx, cy = x1 + w // 2, y1 + h // 2
             approx = np.array([[[x1, y1]], [[x2, y1]], [[x2, y2]], [[x1, y2]]])
             draw_rectangle(img_contour, cx, cy, x1, y1, w, h, approx, i)
+            # 将矩形中心坐标加入共享队列
+            with lock:
+                rect_centers.append((cx, cy))
+                condition.notify()
 
 
 def circle_detection(img, img_contour, max_area_limit, min_area_limit):
@@ -240,12 +258,7 @@ def circle_detection(img, img_contour, max_area_limit, min_area_limit):
             draw_circle(img_contour, x, y, r)
 
 
-def main():
-    board = initialize_board('X')
-    print('初始棋盘状态：')
-    for row in board:
-        print(row)
-
+def vision_thread():
     cap = cv2.VideoCapture(0)
     scale = 1.3
     max_area_limit = 90000
@@ -271,44 +284,45 @@ def main():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    game_over = False
-    current_player = OPPONENT
-
-    while not game_over:
-        if current_player == PLAYER:
-            print("Player's turn (X):")
-            best_move = find_best_move(board)
-            board[best_move[0]][best_move[1]] = PLAYER
-            move_number = tuple_to_number((best_move[0] + 1, best_move[1] + 1))
-            print(f"Player (X) moves to position {move_number}: {best_move}")
-        else:
-            print("Opponent's turn (O):")
-            empty_cells = [(i, j) for i in range(3) for j in range(3) if board[i][j] == '_']
-            if empty_cells:
-                move = empty_cells[np.random.randint(len(empty_cells))]
-                board[move[0]][move[1]] = OPPONENT
-                move_number = tuple_to_number((move[0] + 1, move[1] + 1))
-                print(f"Opponent (O) moves to position {move_number}: {move}")
-
-        print('当前棋盘状态：')
-        for row in board:
-            print(row)
-
-        score = evaluate(board)
-        if score == 10:
-            print("Player (X) wins!")
-            game_over = True
-        elif score == -10:
-            print("Opponent (O) wins!")
-            game_over = True
-        elif not is_moves_left(board):
-            print("It's a draw!")
-            game_over = True
-        else:
-            current_player = PLAYER if current_player == OPPONENT else OPPONENT
-
     cap.release()
     cv2.destroyAllWindows()
+
+
+def control_thread():
+    while True:
+        with condition:
+            condition.wait()  # 等待视觉检测线程的通知
+            if rect_centers:
+                rel_cx, rel_cy = rect_centers.popleft()
+                # 将浮点数转换为整数
+                int_cx = int(rel_cx * 10-3000)
+                int_cy = int(rel_cy * 0.1 -18)
+                int_z = 14.3
+                arm_point(int_cx, int_cy, int_z)
+                print('----------')
+                print('Point:')
+                print(int_cx, int_cy, int_z)
+                print('----------')
+        time.sleep(0.1)
+
+
+def main():
+    board = initialize_board('X')
+    print('初始棋盘状态：')
+    for row in board:
+        print(row)
+        
+    arm_point(4050, 15, 12)
+    time.sleep(1)
+
+    vision = threading.Thread(target=vision_thread)
+    control = threading.Thread(target=control_thread)
+
+    vision.start()
+    control.start()
+
+    vision.join()
+    control.join()
 
 
 if __name__ == "__main__":
