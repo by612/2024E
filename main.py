@@ -3,11 +3,52 @@ import numpy as np
 import threading
 from collections import deque
 from control import arm_point
+from control import question2
 import time
 import random
+import RPi.GPIO as GPIO
+import key_module
+
+KEY1 = 20
+KEY2 = 21
+KEY3 = 16
+KEY4 = 12
 
 PLAYER = 'X'
 OPPONENT = 'O'
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(KEY1, GPIO.IN, GPIO.PUD_UP)
+GPIO.setup(KEY2, GPIO.IN, GPIO.PUD_UP)
+GPIO.setup(KEY3, GPIO.IN, GPIO.PUD_UP)
+GPIO.setup(KEY4, GPIO.IN, GPIO.PUD_UP)
+
+
+def key():
+    FLAG = 1
+    while FLAG == 1:
+        time.sleep(0.05)
+        if GPIO.input(KEY1) == 0:
+            print("KEY1 PRESSED")
+            while GPIO.input(KEY1) == 0:
+                FLAG = 0
+                time.sleep(0.01)
+        elif GPIO.input(KEY2) == 0:
+            print("KEY2 PRESSED")
+            while GPIO.input(KEY2) == 0:
+                FLAG = 0
+                time.sleep(0.01)
+        elif GPIO.input(KEY3) == 0:
+            print("KEY3 PRESSED")
+            while GPIO.input(KEY3) == 0:
+                FLAG = 0
+                time.sleep(0.01)
+        elif GPIO.input(KEY4) == 0:
+            print("KEY4 PRESSED")
+            while GPIO.input(KEY4) == 0:
+                FLAG = 0
+                time.sleep(0.01)
+
 
 # 全局变量，用于在两个线程之间共享数据
 rect_centers = deque(maxlen=10)
@@ -297,36 +338,40 @@ def control_thread():
         condition.wait()  # 等待视觉检测线程的通知
         if rect_centers:
             # 随机选择一个矩形的中心坐标和编号
-            arm_point(4500, 15, 12)
             rect_num, rel_cx, rel_cy = random.choice(rect_centers)
             # 将浮点数转换为整数
             int_cx = int(rel_cx + 1600)
-            int_cy = int(rel_cy * 0.1)
+            int_cy = int(rel_cy * 0.01 + 10)
             int_z = 16
             arm_point(int_cx, int_cy, int_z)
             print('----------')
-            print(f'Point: Rectangle {rect_num}')
+            print(f'矩形编号 {rect_num}')
             print(int_cx, int_cy, int_z)
             print('----------')
             control_executed.set()  # 设置标志，表示已执行机械臂控制
 
 
 def main():
-    board = initialize_board('X')
-    print('初始棋盘状态：')
-    for row in board:
-        print(row)
+    # key()
+    selected_number = key_module.select_grid()
+    print(f"确认最后输出的函数: {selected_number}")
 
-    vision = threading.Thread(target=vision_thread)
-    control = threading.Thread(target=control_thread)
 
-    vision.start()
-    control.start()
-
-    control_executed.wait()  # 等待控制线程执行完毕
-
-    vision.join()
-    print("机械臂控制操作已完成")
+# board = initialize_board('X')
+# print('初始棋盘状态：')
+# for row in board:
+#     print(row)
+#
+# vision = threading.Thread(target=vision_thread)
+# control = threading.Thread(target=control_thread)
+#
+# vision.start()
+# # control.start()
+#
+# control_executed.wait()  # 等待控制线程执行完毕
+#
+# vision.join()
+# print("机械臂控制操作已完成")
 
 
 if __name__ == "__main__":
