@@ -4,6 +4,7 @@ import threading
 from collections import deque
 from control import arm_point
 import time
+import random
 
 PLAYER = 'X'
 OPPONENT = 'O'
@@ -12,6 +13,9 @@ OPPONENT = 'O'
 rect_centers = deque(maxlen=10)
 lock = threading.Lock()
 condition = threading.Condition(lock)
+
+# 标志位，确保只执行一次机械臂控制操作
+control_executed = threading.Event()
 
 
 def initialize_board(start_player='X'):
@@ -205,9 +209,9 @@ def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area
                     if c[0] == cx and c[1] == cy:
                         x, y, w, h, approx = c[2:]
                         draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i)
-                        # 将矩形中心坐标加入共享队列
+                        # 将矩形编号和中心坐标加入共享队列
                         with lock:
-                            rect_centers.append((rel_cx, rel_cy))
+                            rect_centers.append((i + 1, rel_cx, rel_cy))
                             condition.notify()
                         break
         else:
@@ -223,9 +227,9 @@ def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area
             cx, cy = x1 + w // 2, y1 + h // 2
             approx = np.array([[[x1, y1]], [[x2, y1]], [[x2, y2]], [[x1, y2]]])
             draw_rectangle(img_contour, cx, cy, x1, y1, w, h, approx, i)
-            # 将矩形中心坐标加入共享队列
+            # 将矩形编号和中心坐标加入共享队列
             with lock:
-                rect_centers.append((cx, cy))
+                rect_centers.append((i + 1, cx, cy))
                 condition.notify()
 
 
@@ -289,21 +293,22 @@ def vision_thread():
 
 
 def control_thread():
-    while True:
-        with condition:
-            condition.wait()  # 等待视觉检测线程的通知
-            if rect_centers:
-                rel_cx, rel_cy = rect_centers.popleft()
-                # 将浮点数转换为整数
-                int_cx = int(rel_cx * 10-3000)
-                int_cy = int(rel_cy * 0.1 -18)
-                int_z = 14.3
-                arm_point(int_cx, int_cy, int_z)
-                print('----------')
-                print('Point:')
-                print(int_cx, int_cy, int_z)
-                print('----------')
-        time.sleep(0.1)
+    with condition:
+        condition.wait()  # 等待视觉检测线程的通知
+        if rect_centers:
+            # 随机选择一个矩形的中心坐标和编号
+            arm_point(4500, 15, 12)
+            rect_num, rel_cx, rel_cy = random.choice(rect_centers)
+            # 将浮点数转换为整数
+            int_cx = int(rel_cx + 1600)
+            int_cy = int(rel_cy * 0.1)
+            int_z = 16
+            arm_point(int_cx, int_cy, int_z)
+            print('----------')
+            print(f'Point: Rectangle {rect_num}')
+            print(int_cx, int_cy, int_z)
+            print('----------')
+            control_executed.set()  # 设置标志，表示已执行机械臂控制
 
 
 def main():
@@ -311,9 +316,6 @@ def main():
     print('初始棋盘状态：')
     for row in board:
         print(row)
-        
-    arm_point(4050, 15, 12)
-    time.sleep(1)
 
     vision = threading.Thread(target=vision_thread)
     control = threading.Thread(target=control_thread)
@@ -321,8 +323,10 @@ def main():
     vision.start()
     control.start()
 
+    control_executed.wait()  # 等待控制线程执行完毕
+
     vision.join()
-    control.join()
+    print("机械臂控制操作已完成")
 
 
 if __name__ == "__main__":
