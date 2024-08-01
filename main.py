@@ -4,6 +4,7 @@ import threading
 from collections import deque
 from control import fang
 from control import question2
+from camera import lhr
 import time
 import random
 import RPi.GPIO as GPIO
@@ -279,14 +280,14 @@ def circle_detection(img, img_contour, max_area_limit, min_area_limit):
             draw_circle(img_contour, x, y, r)
 
 
-def vision_thread():
+def vision_thread(stop_event):
     cap = cv2.VideoCapture(0)
     scale = 1.3
     max_area_limit = 90000
     min_area_limit = 30
     prev_centers = deque(maxlen=10)
 
-    while True:
+    while not stop_event.is_set():
         success, img = cap.read()
         if not success:
             break
@@ -302,8 +303,15 @@ def vision_thread():
         imgContour = resize_image(imgContour, scale)
         cv2.imshow("Shape Detection", imgContour)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        # 检查KEY4是否被按下
+        if cv2.waitKey(1) & GPIO.input(KEY4) == 0:
+            time.sleep(0.01)
+            print("按键4被按下，退出程序")
+            stop_event.set()  # 设置停止事件
             break
+
+    cap.release()
+    cv2.destroyAllWindows()
 
     cap.release()
     cv2.destroyAllWindows()
@@ -340,29 +348,30 @@ def main():
     i = 1
     while True:
         print("请使用四按键模块选择要执行的题目")
-        time.sleep(0.05)
+        time.sleep(0.1)
         if GPIO.input(KEY1) == 0:
-            time.sleep(0.05)
+            time.sleep(0.01)
             print("按键1被按下，执行题(1)")
-            question2(5, 0)
+            question2(5, 1)
             while GPIO.input(KEY1) == 0:
-                time.sleep(0.05)
+                time.sleep(0.01)
         elif GPIO.input(KEY2) == 0:
-            time.sleep(0.05)
+            time.sleep(0.01)
             print("按键2被按下，执行题(2)")
             selected_number = key_module.select_grid()
             question2(selected_number, i)
             i += 1
             print(f"确认最后输出的数: {selected_number}")
             while GPIO.input(KEY2) == 0:
-                time.sleep(0.05)
+                time.sleep(0.01)
         elif GPIO.input(KEY3) == 0:
-            time.sleep(0.05)
+            time.sleep(0.01)
             print("按键3被按下，执行题(3)")
             board = initialize_board('X')
 
             for _ in range(4):  # 连续执行四次
-                vision = threading.Thread(target=vision_thread)
+                stop_event = threading.Event()  # 创建停止事件
+                vision = threading.Thread(target=vision_thread, args=(stop_event,))
                 control = threading.Thread(target=control_thread)
 
                 vision.start()
@@ -373,10 +382,11 @@ def main():
                 print("机械臂控制操作已完成")
 
         elif GPIO.input(KEY4) == 0:
-            time.sleep(0.05)
+            time.sleep(0.01)
             print("按键4被按下，执行题(4)")
+            lhr()
             while GPIO.input(KEY4) == 0:
-                time.sleep(0.05)
+                time.sleep(0.01)
 
     # print('初始棋盘状态：')
     # for row in board:
