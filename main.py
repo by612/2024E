@@ -46,12 +46,6 @@ control_executed = threading.Event()
 # 标志位，确保只保存一次检测结果
 first_detection_saved = threading.Event()
 
-def initialize_board(start_player='X'):
-    """初始化棋盘"""
-    if start_player not in ['X', 'O']:
-        raise ValueError("start_player 必须是 'X' 或 'O'")
-    board = [['_' for _ in range(3)] for _ in range(3)]
-    return board
 
 
 def resize_image(img, scale):
@@ -84,101 +78,6 @@ def is_moves_left(board):
     return False
 
 
-def evaluate(board):
-    """评估当前棋盘状态"""
-    for row in board:
-        if row[0] == row[1] == row[2]:
-            if row[0] == PLAYER:
-                return +10
-            elif row[0] == OPPONENT:
-                return -10
-
-    for col in range(3):
-        if board[0][col] == board[1][col] == board[2][col]:
-            if board[0][col] == PLAYER:
-                return +10
-            elif board[0][col] == OPPONENT:
-                return -10
-
-    if board[0][0] == board[1][1] == board[2][2]:
-        if board[0][0] == PLAYER:
-            return +10
-        elif board[0][0] == OPPONENT:
-            return -10
-
-    if board[0][2] == board[1][1] == board[2][0]:
-        if board[0][2] == PLAYER:
-            return +10
-        elif board[0][2] == OPPONENT:
-            return -10
-
-    return 0
-
-
-def minimax(board, depth, is_max, alpha, beta):
-    """Minimax算法带alpha-beta剪枝"""
-    score = evaluate(board)
-
-    if score == 10:
-        return score - depth
-
-    if score == -10:
-        return score + depth
-
-    if not is_moves_left(board):
-        return 0
-
-    if is_max:
-        best = -1000
-        for i in range(3):
-            for j in range(3):
-                if board[i][j] == '_':
-                    board[i][j] = PLAYER
-                    best = max(best, minimax(board, depth + 1, False, alpha, beta))
-                    alpha = max(alpha, best)
-                    board[i][j] = '_'
-                    if beta <= alpha:
-                        break
-        return best
-    else:
-        best = 1000
-        for i in range(3):
-            for j in range(3):
-                if board[i][j] == '_':
-                    board[i][j] = OPPONENT
-                    best = min(best, minimax(board, depth + 1, True, alpha, beta))
-                    beta = min(beta, best)
-                    board[i][j] = '_'
-                    if beta <= alpha:
-                        break
-        return best
-
-
-def find_best_move(board):
-    """寻找最佳移动位置"""
-    best_val = -1000
-    best_move = (-1, -1)
-
-    for i in range(3):
-        for j in range(3):
-            if board[i][j] == '_':
-                board[i][j] = PLAYER
-                move_val = minimax(board, 0, False, -1000, 1000)
-                board[i][j] = '_'
-                if move_val > best_val:
-                    best_move = (i, j)
-                    best_val = move_val
-
-    return best_move
-
-
-def tuple_to_number(position):
-    """将位置元组转换为编号"""
-    row, col = position
-    if 1 <= row <= 3 and 1 <= col <= 3:
-        return (row - 1) * 3 + col
-    else:
-        raise ValueError("行和列的值必须在1到3之间")
 
 
 def vision_thread(stop_event):
@@ -298,7 +197,6 @@ def main():
         elif GPIO.input(KEY3) == 0:
             time.sleep(0.01)
             print("按键3被按下，执行题(3)")
-            board = initialize_board('X')
 
             for _ in range(4):  # 连续执行四次
                 print('进来了')
@@ -311,17 +209,19 @@ def main():
             time.sleep(0.01)
             while True:
                 print("按键4被按下，执行题(4)，请选择题号")
+                time.sleep(0.1)
                 if GPIO.input(KEY5) == 0:
                     time.sleep(0.01)
-                    # lhr1()
+                    lhr(1)
                     break
                 elif GPIO.input(KEY6) == 0:
                     time.sleep(0.01)
-                    # lhr2()
+                    lhr(2)
                     break
             while GPIO.input(KEY4) == 0:
                 time.sleep(0.01)
-            break
+            
+
 
 if __name__ == "__main__":
     main()

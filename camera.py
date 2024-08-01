@@ -112,8 +112,8 @@ def rectangle_detection(img, img_contour, max_area_limit, min_area_limit, histor
 
 def qizi_detect(img, min_radius, max_radius, distance_threshold=10):
     imgGray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    imgBlur = cv2.GaussianBlur(imgGray, (5, 5), 1)
-    imgCanny = cv2.Canny(imgBlur, 50, 150)
+    imgBlur = cv2.GaussianBlur(imgGray, (3, 3), 1)
+    imgCanny = cv2.Canny(imgBlur, 130, 150)
     imgContour = img.copy()
 
     circles = cv2.HoughCircles(
@@ -122,14 +122,14 @@ def qizi_detect(img, min_radius, max_radius, distance_threshold=10):
         dp=1.2,
         minDist=20,
         param1=50,
-        param2=30,
+        param2=40,
         minRadius=min_radius,
         maxRadius=max_radius
     )
 
     if circles is not None:
         circles = np.round(circles[0, :]).astype("int")
-        merged_circles = merge_close_circles(circles, threshold=10)  # 合并相近的圆
+        merged_circles = merge_close_circles(circles, threshold=5)  # 合并相近的圆
         for (x, y, r) in merged_circles:
             for rect in global_rectangles:
                 rect_id, rect_x, rect_y = rect
@@ -276,12 +276,12 @@ def evaluate_board(state, player):
 
 # 在 lhr 函数中调用 check_circles_status 来打印结果
 def lhr(player):
-    cap = cv2.VideoCapture(1)
-    scale = 1.3
+    cap = cv2.VideoCapture(0)
+    scale = 1
     max_area_limit = 20000
     min_area_limit = 7000
-    min_radius = 30
-    max_radius = 39  # 直径 50 以下
+    min_radius = 32
+    max_radius = 40  # 直径 50 以下
     distance_threshold = 50
     historical_data = {}
     frame_count = 0
@@ -318,15 +318,18 @@ def lhr(player):
                 FLAG = False
 
         global_circles.clear()
-        for _ in range(20):
+        for _ in range(10):
             success, img = cap.read()
             if not success:
                 break
             img_resized = resize_image(img, scale)
             imgContour = qizi_detect(img_resized, min_radius, max_radius, distance_threshold)
-            # cv2.imshow("Detected Circles", imgContour)
-            # if cv2.waitKey(1) & 0xFF == ord('q'):
-            #     break
+            # 显示图像并铺满屏幕
+            cv2.namedWindow("Detected Circles", cv2.WND_PROP_FULLSCREEN)
+            cv2.setWindowProperty("Detected Circles", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+            cv2.imshow("Detected Circles", imgContour)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
         # 检查每个矩形编号是否有对应的圆
         status = check_circles_status()
@@ -342,9 +345,10 @@ def lhr(player):
                 print("win")
                 break
             print("下棋")
-            control.egde_xi(player,naqz_i) # 两侧拿起子
+            print(xia_x)
             naqz_i = naqz_i + 1
-            control.fang(xia_x,xia_y)
+            control.quesion4(player,naqz_i) # 两侧拿起子
+            control.fanga(xia_x,xia_y)
         else:
             step_count = step_count+1
 
@@ -380,8 +384,8 @@ def xiaqi(player):
 
         ################################################################################################################
 
-        control.xi(fromqz_x,fromqz_y)
-        control.fang(goqz_x,goqz_y)
+        control.xia(fromqz_x,fromqz_y)
+        control.fanga(goqz_x,goqz_y)
         return False,0,0
     else:
         # 计算最佳下一步

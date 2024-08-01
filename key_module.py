@@ -6,7 +6,7 @@ from control import question2
 KEY_PLUS = 17
 KEY_SUB = 27
 KEY_ENTER = 22
-BOUNCE_TIME = 300  # 按键消抖时间，单位为毫秒
+BOUNCE_TIME = 100  # 按键消抖时间，单位为毫秒
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(KEY_PLUS, GPIO.IN, pull_up_down=GPIO.PUD_UP)

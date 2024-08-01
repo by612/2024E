@@ -117,20 +117,20 @@ def inverse_kinematics(x, y):
 # arm_point(0, 18, 14)
 # time.sleep(100)
 # arm_control(6, 1000,180,10,45)
-l1 = 4270
-x1 = 17
+l1 = 4200
+x1 = 17.3
 l2 = l1 - 650
 x2 = x1 - 3
 l3 = l1 - 1300
 x3 = x1 - 5.8
-down = 17.3  # down to 17cm
+down = 17.5  # down to 17cm
 up = 16  # put at 16cm
-l4 = l1 + 1100
-l5 = l3 - 800
-l6 = l4 - 100
-x4 = 19.8
+l4 = l1 + 1150
+l5 = l3 - 750
+l6 = l1 + 900
+x4 = 20
 x5 = 8.5
-l7 = l5 - 50
+l7 = l5 - 150
 x12 = x2 - 0.1
 l8 = l6 - 50
 l9 = l7 - 90
@@ -183,9 +183,9 @@ def question3(l, x, n=0):
     if (n == 1):
         xi(l7, x1)
     elif (n == 2):
-        xi(l6, x1)
-    elif (n == 3):
         xi(l9, x12)
+    elif (n == 3):
+        xi(l6, x1)
     elif (n == 4):
         xi(l6, x4)
     else:
@@ -197,16 +197,23 @@ def question3(l, x, n=0):
     slow_up(l, x, up)
     arm_control(1, 1000, 180, 10, 45)
     time.sleep(0.5)
-
+def fanga(rel_cx,rel_cy):
+    int_cx = int(7151 - rel_cx * 5.96)
+    int_cy = int((831.81 - rel_cy) / 37.93)
+    fang(int_cx,int_cy)
+def xia(rel_cx,rel_cy):
+    int_cx = int(7151 - rel_cx * 5.96)
+    int_cy = int((831.81 - rel_cy) / 37.93)
+    xi(int_cx,int_cy)
 
 def question2(x, n):
     # print(f'n: {n}')
     if (n == 1):
         xi(l7, x1)
     elif (n == 2):
-        xi(l6, x1)
-    elif (n == 3):
         xi(l9, x12)
+    elif (n == 3):
+        xi(l6, x1)
     elif (n == 4):
         xi(l6, x4)
     else:
@@ -241,6 +248,29 @@ def question2(x, n):
         fang(l1, x3)
         print("放的位置是9")
 
+def quesion4(player,count):
+    if (player == 1):
+        if(count == 1):
+            xi(l7, x1)
+        elif (count == 2):
+            xi(l9, x12)
+        elif (count == 3):
+            xi(l9, x3)
+        elif (count == 4):
+            xi(l7, x5)
+        elif (count == 5):
+            xi(l5, x4)
+    elif (player == 2):
+        if(count == 1):
+            xi(l6, x1)
+        elif (count == 2):
+            xi(l6, x2)
+        elif (count == 3):
+            xi(l8, x3)
+        elif (count == 4):
+            xi(l8, x5)
+        elif (count == 5):
+            xi(l4, x4)
 # xi(l1,x1)
 # fang(l6,x2)
 # xi(l1,x2)
