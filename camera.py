@@ -106,8 +106,6 @@ def rectangle_detection(img, img_contour, max_area_limit, min_area_limit, histor
             historical_data[(cx, cy)] = frame_count
             global_rectangles.append((i + 1, cx, cy))  # 存储编号和坐标
         return True, img_contour  # 返回成功和处理后的图像
-    else:
-        print("> 45 degree")
 
     return False, img_contour  # 返回失败和处理后的图像
 

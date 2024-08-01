@@ -21,6 +21,7 @@ KEY5 = 26
 KEY6 = 19
 
 global vision_running
+i = 0
 
 PLAYER = 'X'
 OPPONENT = 'O'
@@ -42,6 +43,8 @@ condition = threading.Condition(lock)
 # 标志位，确保只执行一次机械臂控制操作
 control_executed = threading.Event()
 
+# 标志位，确保只保存一次检测结果
+first_detection_saved = threading.Event()
 
 def initialize_board(start_player='X'):
     """初始化棋盘"""
@@ -200,17 +203,18 @@ def vision_thread(stop_event):
         success, imgContour = camera.rectangle_detection(imgCanny, imgContour, max_area_limit, min_area_limit, historical_data, frame_count)
 
         if success:
-            # 将排序后的矩形中心加入共享队列
+            print('已将排序后的矩形中心加入共享队列并保存第一次检测结果')
+            # 将排序后的矩形中心加入共享队列并保存第一次检测结果
             with lock:
                 for i, rect in enumerate(camera.global_rectangles):
                     rect_num, cx, cy = rect
                     rel_cx, rel_cy = cx, cy
                     rect_centers.append((i, rel_cx, rel_cy))
-                    # print(rect_centers)
+                print('已保存第一次检测结果')
                 condition.notify_all()
 
         imgContour = resize_image(imgContour, scale)
-        cv2.imshow("矩形检测", imgContour)
+        # cv2.imshow("矩形检测", imgContour)
 
         # 检查KEY4是否被按下
         if cv2.waitKey(1) & GPIO.input(KEY4) == 0:
@@ -226,38 +230,51 @@ def vision_thread(stop_event):
 
 
 def control_thread():
+    global i
     """机械臂控制线程"""
     selected_number = key_module.select_grid()  # 获取选择的棋格编号
     print('***********')
     print(f'选择的棋格编号： {selected_number}')
     print('***********')
 
-    with condition:
-        condition.wait()  # 等待视觉检测线程的通知
-        if rect_centers:
-            # 根据选择的棋格编号找到对应的 rect_center
-            # i = 1
-            for rect_num, rel_cx, rel_cy in rect_centers:
-                if (rect_num + 1) == selected_number:
-                    # 将浮点数转换为整数
-                    int_cx = int(7074.3 - rel_cx * 5.96)
-                    int_cy = int((831.81 - rel_cy) / 37.93)
-                    control.question3(int_cx, int_cy, 0)
-                    # i += 1
-                    print('----------')
-                    print(f'矩形编号： {rect_num}')
-                    print("pwd公式解算出的坐标")
-                    print(int_cx, int_cy)
-                    print('----------')
-                    break  # 找到后退出循环
-            else:
-                print("未找到对应的矩形编号！")
+    if rect_centers:
+        print('$$$$$$$$$$$$$$$$')
+        print(rect_centers)
+        print('$$$$$$$$$$$$$$$$')
+        # 根据选择的棋格编号找到对应的 rect_center
+        for rect_num, rel_cx, rel_cy in rect_centers:
+            if (rect_num + 1) == selected_number:
+                # 将浮点数转换为整数
+                int_cx = int(7151 - rel_cx * 5.96)
+                int_cy = int((831.81 - rel_cy) / 37.93)
+                control.question3(int_cx, int_cy, i)
+                print(rect_num, rel_cx, rel_cy)
+                i += 1
+                print('----------')
+                print(f'矩形编号： {rect_num}')
+                print("pwd公式解算出的坐标")
+                print(int_cx, int_cy)
+                print('----------')
+                break  # 找到后退出循环
+        else:
+            print("未找到对应的矩形编号！")
         control_executed.set()  # 设置标志，表示已执行机械臂控制
 
 
 def main():
     """主程序入口"""
-    i = 1
+    j = 1
+    stop_event = threading.Event()  # 创建停止事件
+    vision = threading.Thread(target=vision_thread, args=(stop_event,))
+    vision.start()
+    time.sleep(3)
+    # print(rect_centers)
+
+    # 立即停止视觉线程
+    stop_event.set()
+    vision.join()  # 等待线程结束
+    print(rect_centers)
+
     while True:
         print("请选择要执行的题目")
         time.sleep(0.1)
@@ -267,31 +284,29 @@ def main():
             question2(5, 1)
             while GPIO.input(KEY1) == 0:
                 time.sleep(0.01)
+
         elif GPIO.input(KEY2) == 0:
             time.sleep(0.01)
             print("按键2被按下，执行题(2)")
             selected_number = key_module.select_grid()
-            question2(selected_number, i)
-            i += 1
+            question2(selected_number, j)
+            j += 1
             print(f"确认最后输出的数: {selected_number}")
             while GPIO.input(KEY2) == 0:
                 time.sleep(0.01)
+
         elif GPIO.input(KEY3) == 0:
             time.sleep(0.01)
             print("按键3被按下，执行题(3)")
             board = initialize_board('X')
 
             for _ in range(4):  # 连续执行四次
-                stop_event = threading.Event()  # 创建停止事件
-                vision = threading.Thread(target=vision_thread, args=(stop_event,))
+                print('进来了')
                 control = threading.Thread(target=control_thread)
-
-                vision.start()
                 control.start()
-
-                vision.join()  # 等待视觉线程结束
-                control.join()  # 等待视觉线程结束
+                control.join()  # 等待控制线程结束
                 print("机械臂控制操作已完成")
+
         elif GPIO.input(KEY4) == 0:
             time.sleep(0.01)
             while True:
@@ -307,7 +322,6 @@ def main():
             while GPIO.input(KEY4) == 0:
                 time.sleep(0.01)
             break
-
 
 if __name__ == "__main__":
     main()

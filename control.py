@@ -13,6 +13,8 @@ ser = serial.Serial('/dev/ttyAMA0', 9600)  # 请根据实际情况更改端口
 a = 10.4
 b = 9.9
 c = 16.5
+
+
 # z14.3,y9-19
 
 
@@ -21,7 +23,7 @@ def arm_point(x, y, z):
     th_end1 = 90 - t1
     th_end2 = t2
     th_end3 = 180 - t3
-    #print(f"目标点({x}, {y}, {z}) -> 角度: theta1 = {th_end1:.2f}, theta2 = {th_end2:.2f}, theta3 = {th_end3:.2f}")
+    # print(f"目标点({x}, {y}, {z}) -> 角度: theta1 = {th_end1:.2f}, theta2 = {th_end2:.2f}, theta3 = {th_end3:.2f}")
     arm_i = 10
     while arm_i != 0:
         arm_control(1, x, th_end1 + 2 * arm_i, th_end2 - arm_i, th_end3)
@@ -34,7 +36,7 @@ def arm_point_derect(x, y, z):
     th_end1 = 90 - t1
     th_end2 = t2
     th_end3 = 180 - t3
-    #print(f"目标点({x}, {y}, {z}) -> 角度: theta1 = {th_end1:.2f}, theta2 = {th_end2:.2f}, theta3 = {th_end3:.2f}")
+    # print(f"目标点({x}, {y}, {z}) -> 角度: theta1 = {th_end1:.2f}, theta2 = {th_end2:.2f}, theta3 = {th_end3:.2f}")
     arm_control(1, x, th_end1, th_end2, th_end3)
 
 
@@ -117,21 +119,21 @@ def inverse_kinematics(x, y):
 # arm_control(6, 1000,180,10,45)
 l1 = 4270
 x1 = 17
-l2 = l1-650
-x2 = x1-3
-l3 = l1-1300
-x3 = x1-5.8
-down = 17.3 # down to 17cm
-up = 16 #put at 16cm
+l2 = l1 - 650
+x2 = x1 - 3
+l3 = l1 - 1300
+x3 = x1 - 5.8
+down = 17.3  # down to 17cm
+up = 16  # put at 16cm
 l4 = l1 + 1100
 l5 = l3 - 800
 l6 = l4 - 100
 x4 = 19.8
 x5 = 8.5
-l7 = l5-50
-x12 = x2-0.1
-l8 = l6-50
-l9=l7-90
+l7 = l5 - 50
+x12 = x2 - 0.1
+l8 = l6 - 50
+l9 = l7 - 90
 arm_control(1, 0, 180, 10, 45)
 time.sleep(2)
 
@@ -161,7 +163,7 @@ def slow_up(x, y, i):
     time.sleep(0.5)
 
 
-def xi(l, x): 
+def xi(l, x):
     slow(l, x, down)
     sii(1)
     slow_up(l, x, down)
@@ -176,20 +178,20 @@ def fang(l, x):
 
 
 def question3(l, x, n=0):
-    n+=1
-    print(f'n: {n}')
-    if(n==1):
+    n += 1
+    # print(f'n: {n}')
+    if (n == 1):
         xi(l7, x1)
-    elif(n==2):
+    elif (n == 2):
         xi(l6, x1)
-    elif(n==3):
-        xi(l9, x12)    
-    elif(n==4):
+    elif (n == 3):
+        xi(l9, x12)
+    elif (n == 4):
         xi(l6, x4)
     else:
         print("out of 4 times")
         return 0
-    
+
     slow(l, x, up)
     sii(0)
     slow_up(l, x, up)
@@ -197,20 +199,20 @@ def question3(l, x, n=0):
     time.sleep(0.5)
 
 
-def question2(x,n):
-    print(f'n: {n}')
-    if(n==1):
+def question2(x, n):
+    # print(f'n: {n}')
+    if (n == 1):
         xi(l7, x1)
-    elif(n==2):
+    elif (n == 2):
         xi(l6, x1)
-    elif(n==3):
-        xi(l9, x12)    
-    elif(n==4):
+    elif (n == 3):
+        xi(l9, x12)
+    elif (n == 4):
         xi(l6, x4)
     else:
         print("out of 4 times")
         return 0
-        
+
     if (x == 1):
         fang(l3, x1)
         print("放的位置是1")
@@ -238,7 +240,6 @@ def question2(x,n):
     elif (x == 9):
         fang(l1, x3)
         print("放的位置是9")
-
 
 # xi(l1,x1)
 # fang(l6,x2)
@@ -301,5 +302,4 @@ def question2(x,n):
 # time.sleep(10)
 # 831.81-pix*37.93 = x_value
 # 6886.8-5.91*pix = l_value
-
 
