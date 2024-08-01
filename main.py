@@ -4,6 +4,7 @@ import threading
 from collections import deque
 
 import camera
+import control
 from control import fang, question2
 from camera import lhr, rectangle_detection, qizi_detect, global_rectangles
 import time
@@ -205,20 +206,20 @@ def vision_thread(stop_event):
                     rect_num, cx, cy = rect
                     rel_cx, rel_cy = cx, cy
                     rect_centers.append((i, rel_cx, rel_cy))
-                    print(rect_centers)
+                    # print(rect_centers)
                 condition.notify_all()
 
         imgContour = resize_image(imgContour, scale)
         cv2.imshow("矩形检测", imgContour)
 
         # 检查KEY4是否被按下
-        # if cv2.waitKey(1) & GPIO.input(KEY4) == 0:
-        #     time.sleep(0.01)
-        #     print("按键4被按下，退出程序")
-        #     stop_event.set()  # 设置停止事件
-        #     break
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & GPIO.input(KEY4) == 0:
+            time.sleep(0.01)
+            print("按键4被按下，退出程序")
+            stop_event.set()  # 设置停止事件
             break
+        # if cv2.waitKey(1) & 0xFF == ord('q'):
+        #     break
 
     cap.release()
     cv2.destroyAllWindows()
@@ -235,12 +236,14 @@ def control_thread():
         condition.wait()  # 等待视觉检测线程的通知
         if rect_centers:
             # 根据选择的棋格编号找到对应的 rect_center
+            # i = 1
             for rect_num, rel_cx, rel_cy in rect_centers:
                 if (rect_num + 1) == selected_number:
                     # 将浮点数转换为整数
                     int_cx = int(7074.3 - rel_cx * 5.96)
                     int_cy = int((831.81 - rel_cy) / 37.93)
-                    fang(int_cx, int_cy)
+                    control.question3(int_cx, int_cy, 0)
+                    # i += 1
                     print('----------')
                     print(f'矩形编号： {rect_num}')
                     print("pwd公式解算出的坐标")

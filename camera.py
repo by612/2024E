@@ -85,7 +85,7 @@ def rectangle_detection(img, img_contour, max_area_limit, min_area_limit, histor
         return merged_centers
 
     cross_centers = merge_close_rectangles(cross_centers)
-    print(f"Detected {len(cross_centers)} merged rectangles")
+    # print(f"Detected {len(cross_centers)} merged rectangles")
 
     if len(cross_centers) == 9:
         # 仅传递坐标点到 bh_sort 函数
@@ -344,7 +344,7 @@ def lhr(player):
                 print("win")
                 break
             print("下棋")
-            control.egde_xi(player,naqz_i)#两侧拿起子
+            control.egde_xi(player,naqz_i) # 两侧拿起子
             naqz_i = naqz_i + 1
             control.fang(xia_x,xia_y)
         else:
