@@ -1,10 +1,20 @@
+import time
+
 import cv2
 import numpy as np
 from sort import bh_sort
+import RPi.GPIO as GPIO
+import control
 
 # 全局变量用于存储九宫格的编号和坐标结果
 global_rectangles = []
 global_circles = []  # 用于存储检测到的圆的信息
+# Initialize prev_state globally
+global_prev_state = [0] * 9
+KEY_START = 13
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(KEY_START, GPIO.IN, GPIO.PUD_UP)
 
 
 def check_circles_status():
@@ -88,6 +98,7 @@ def rectangle_detection(img, img_contour, max_area_limit, min_area_limit, histor
         sorted_centers = sorted(cross_centers, key=lambda item: sorted_coordinates_index[(item[0], item[1])])
 
         cx_5, cy_5 = sorted_centers[4][:2]  # 中心点为排序后第五个点
+        global_rectangles.clear()
 
         for i, (cx, cy, x, y, w, h, approx) in enumerate(sorted_centers):
             rel_cx, rel_cy = cx - cx_5, cy - cy_5  # 相对坐标
@@ -175,13 +186,22 @@ def get_changed_positions(prev_state, current_state):
     :param current_state: 当前棋局状态（长度为9的列表）
     :return: 变化的棋子上一步所在格子编号的列表
     """
-    changed_positions = []
-
+    from_qz = 0
+    go_qz = 0
+    chan = False
     for i in range(9):
         if prev_state[i] != current_state[i] and prev_state[i] != 0:
-            changed_positions.append(i + 1)  # 返回的是1-9的编号
+            chan=True
+    if chan == True:
+        for i in range(9):
+            #qii移动到哪
+            if prev_state[i] != current_state[i] and prev_state[i] == 0:
+                from_qz=i+1
+            #qii从哪移动
+            if prev_state[i] != current_state[i] and current_state[i] == 0:
+                go_qz=i+1
 
-    return changed_positions
+    return chan,from_qz,go_qz
 
 
 def evaluate_board(state, player):
@@ -190,7 +210,7 @@ def evaluate_board(state, player):
 
     :param state: 当前棋局状态（长度为9的列表）
     :param player: 当前玩家（1为黑棋，2为白棋）
-    :return: 最佳的落子位置（1-9）
+    :return: 最佳的落子位置（1-9）或 -1 如果游戏已经结束
     """
     opponent = 3 - player
     best_move = None
@@ -207,19 +227,37 @@ def evaluate_board(state, player):
                 return True
         return False
 
+    def get_winning_move(board, player):
+        for move in range(9):
+            if board[move] == 0:  # 空位
+                new_state = board.copy()
+                new_state[move] = player
+                if check_win(new_state, player):
+                    return move + 1
+        return None
+
+    # 检查游戏是否已经结束
+    if check_win(state, player) or check_win(state, opponent) or all(cell != 0 for cell in state):
+        return -1
+
+    # 优先选择中间位置
+    if player == 1 and state[4] == 0:
+        return 5
+
+    # 先手优先尝试直接获胜
+    winning_move = get_winning_move(state, player)
+    if winning_move is not None:
+        return winning_move
+
+    # 阻止对手直接获胜
+    blocking_move = get_winning_move(state, opponent)
+    if blocking_move is not None:
+        return blocking_move
+
     for move in range(9):
         if state[move] == 0:  # 空位
             new_state = state.copy()
             new_state[move] = player
-            if check_win(new_state, player):
-                return move + 1  # 如果当前玩家能赢，就立即返回这个位置
-
-            # 评估对手的潜在威胁
-            new_state[move] = opponent
-            if check_win(new_state, opponent):
-                return move + 1  # 如果对手能赢，就阻止对手
-
-            new_state[move] = 0
 
             # 简单评分：对角线上的分数
             score = 0
@@ -239,9 +277,7 @@ def evaluate_board(state, player):
 
 
 # 在 lhr 函数中调用 check_circles_status 来打印结果
-def lhr():
-    global prev_state  # Declare prev_state as global
-
+def lhr(player):
     cap = cv2.VideoCapture(1)
     scale = 1.3
     max_area_limit = 20000
@@ -251,7 +287,7 @@ def lhr():
     distance_threshold = 50
     historical_data = {}
     frame_count = 0
-
+##################################################################################################
     while True:
         success, img = cap.read()
         if not success:
@@ -269,49 +305,95 @@ def lhr():
                 print(f"编号: {rect[0]}, 坐标: ({rect[1]}, {rect[2]})")
             break
 
-    # 循环1000次
-    global_circles.clear()
-    for _ in range(10):
-        success, img = cap.read()
-        if not success:
-            break
-        img_resized = resize_image(img, scale)
-        imgContour = qizi_detect(img_resized, min_radius, max_radius, distance_threshold)
+    if player == 1:
+        step_count = 5
+    else:
+        step_count = 4
 
-    # 检查每个矩形编号是否有对应的圆
-    status = check_circles_status()
-    print("编号对应的圆状态如下：")
-    for rect_id, status_value in status.items():
-        status_str = {0: "没有圆", 1: "黑色", 2: "白色"}[status_value]
-        print(f"编号: {rect_id}, 状态: {status_str}")
-    print(status)
+    iii = 0
+    naqz_i = 0
+    while iii < step_count:
+        iii += 1
+        FLAG = True
+        while FLAG:
+            if GPIO.input(KEY_START) == 0:
+                FLAG = False
 
-    xiaqi(1)
+        global_circles.clear()
+        for _ in range(20):
+            success, img = cap.read()
+            if not success:
+                break
+            img_resized = resize_image(img, scale)
+            imgContour = qizi_detect(img_resized, min_radius, max_radius, distance_threshold)
+            # cv2.imshow("Detected Circles", imgContour)
+            # if cv2.waitKey(1) & 0xFF == ord('q'):
+            #     break
+
+        # 检查每个矩形编号是否有对应的圆
+        status = check_circles_status()
+        print("编号对应的圆状态如下：")
+        for rect_id, status_value in status.items():
+            status_str = {0: "没有圆", 1: "黑色", 2: "白色"}[status_value]
+            print(f"编号: {rect_id}, 状态: {status_str}")
+        print(status)
+
+        could, xia_x, xia_y = xiaqi(player)
+        if could is True:
+            if xia_x == 0:
+                print("win")
+                break
+            print("下棋")
+            control.egde_xi(player,naqz_i)#两侧拿起子
+            naqz_i = naqz_i + 1
+            control.fang(xia_x,xia_y)
+        else:
+            step_count = step_count+1
 
     cap.release()
     cv2.destroyAllWindows()
 
 
-# Initialize prev_state globally
-prev_state = [0] * 9  # 初始状态
-
-
 def xiaqi(player):
-    global prev_state  # Declare prev_state as global
+    global global_prev_state
+
+    prev_state = global_prev_state  # 初始状态
     current_state = [0] * 9
 
     status = check_circles_status()
     for rect_id, status_value in status.items():
         current_state[rect_id-1]=status_value
     print(current_state)
+
+    print("prev_state：", prev_state)
     # 判断棋局变化
-    changes = get_changed_positions(prev_state, current_state)
+    changes,from_qz,go_qz = get_changed_positions(prev_state, current_state)
+    # 更新前一步状态
+    global_prev_state = current_state
     if changes:
-        print("棋局变化：上一步变化的棋子格子编号：", changes)
+        print("棋局变化：上一步变化的棋子格子编号：", from_qz,go_qz)
+        for rect in global_rectangles:
+            if from_qz == rect[0]:
+                fromqz_x = rect[1]
+                fromqz_y = rect[2]
+            if go_qz == rect[0]:
+                goqz_x = rect[1]
+                goqz_y = rect[2]
+
+        ################################################################################################################
+
+        control.xi(fromqz_x,fromqz_y)
+        control.fang(goqz_x,goqz_y)
+        return False,0,0
     else:
         # 计算最佳下一步
         best_move = evaluate_board(current_state, player)
-        print(f"最佳下一步落子位置：{best_move}")
-
-    # 更新前一步状态
-    prev_state = current_state.copy()
+        if best_move != -1:
+            print(f"最佳下一步落子位置：{best_move}")
+            for rect in global_rectangles:
+                if best_move == rect[0]:
+                    bm_x = rect[1]
+                    bm_y = rect[2]
+            return True, bm_x, bm_y
+        else:
+            return True, 0, 0

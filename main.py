@@ -2,30 +2,36 @@ import cv2
 import numpy as np
 import threading
 from collections import deque
-from control import fang
-from control import question2
-from camera import lhr
+
+import camera
+from control import fang, question2
+from camera import lhr, rectangle_detection, qizi_detect, global_rectangles
 import time
 import random
 import RPi.GPIO as GPIO
 import key_module
 
+# 定义按键引脚
 KEY1 = 20
 KEY2 = 21
 KEY3 = 16
 KEY4 = 12
+KEY5 = 26
+KEY6 = 19
 
 global vision_running
 
 PLAYER = 'X'
 OPPONENT = 'O'
 
+# 设置GPIO模式
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(KEY1, GPIO.IN, GPIO.PUD_UP)
 GPIO.setup(KEY2, GPIO.IN, GPIO.PUD_UP)
 GPIO.setup(KEY3, GPIO.IN, GPIO.PUD_UP)
 GPIO.setup(KEY4, GPIO.IN, GPIO.PUD_UP)
-
+GPIO.setup(KEY5, GPIO.IN, GPIO.PUD_UP)
+GPIO.setup(KEY6, GPIO.IN, GPIO.PUD_UP)
 
 # 全局变量，用于在两个线程之间共享数据
 rect_centers = deque(maxlen=10)
@@ -37,14 +43,15 @@ control_executed = threading.Event()
 
 
 def initialize_board(start_player='X'):
+    """初始化棋盘"""
     if start_player not in ['X', 'O']:
         raise ValueError("start_player 必须是 'X' 或 'O'")
-
     board = [['_' for _ in range(3)] for _ in range(3)]
     return board
 
 
 def resize_image(img, scale):
+    """调整图像大小"""
     width = int(img.shape[1] * scale)
     height = int(img.shape[0] * scale)
     dimensions = (width, height)
@@ -52,6 +59,7 @@ def resize_image(img, scale):
 
 
 def draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i):
+    """在图像上绘制矩形"""
     cv2.rectangle(img_contour, (x, y), (x + w, y + h), (0, 0, 255), 2)
     cv2.drawMarker(img_contour, (cx, cy), (0, 255, 0), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=2)
     coord_text = f"({cx},{cy})"
@@ -60,10 +68,12 @@ def draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i):
 
 
 def draw_circle(img_contour, cx, cy, radius):
+    """在图像上绘制圆形"""
     cv2.circle(img_contour, (cx, cy), radius, (255, 0, 0), 2)
 
 
 def is_moves_left(board):
+    """检查棋盘是否还有空位"""
     for row in board:
         if '_' in row:
             return True
@@ -71,6 +81,7 @@ def is_moves_left(board):
 
 
 def evaluate(board):
+    """评估当前棋盘状态"""
     for row in board:
         if row[0] == row[1] == row[2]:
             if row[0] == PLAYER:
@@ -101,6 +112,7 @@ def evaluate(board):
 
 
 def minimax(board, depth, is_max, alpha, beta):
+    """Minimax算法带alpha-beta剪枝"""
     score = evaluate(board)
 
     if score == 10:
@@ -139,6 +151,7 @@ def minimax(board, depth, is_max, alpha, beta):
 
 
 def find_best_move(board):
+    """寻找最佳移动位置"""
     best_val = -1000
     best_move = (-1, -1)
 
@@ -156,6 +169,7 @@ def find_best_move(board):
 
 
 def tuple_to_number(position):
+    """将位置元组转换为编号"""
     row, col = position
     if 1 <= row <= 3 and 1 <= col <= 3:
         return (row - 1) * 3 + col
@@ -163,129 +177,14 @@ def tuple_to_number(position):
         raise ValueError("行和列的值必须在1到3之间")
 
 
-def rectangle_detection(img, img_contour, prev_centers, max_area_limit, min_area_limit):
-    contours, hierarchy = cv2.findContours(img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    cross_centers = []
-
-    for obj in contours:
-        area = cv2.contourArea(obj)
-        if area > max_area_limit or area < min_area_limit:
-            continue
-        perimeter = cv2.arcLength(obj, True)
-        approx = cv2.approxPolyDP(obj, 0.02 * perimeter, True)
-        CornerNum = len(approx)
-        x, y, w, h = cv2.boundingRect(approx)
-        cx, cy = x + w // 2, y + h // 2
-
-        if CornerNum == 4:
-            cross_centers.append((cx, cy, x, y, w, h, approx))
-
-    if len(cross_centers) == 9:
-        centers = np.array([c[:2] for c in cross_centers])
-        rect = np.zeros((9, 2), dtype="float32")
-
-        s = centers.sum(axis=1)
-        idx_0 = np.argmin(s)
-        idx_8 = np.argmax(s)
-
-        diff = np.diff(centers, axis=1).flatten()
-        idx_2 = np.argmin(diff)
-        idx_6 = np.argmax(diff)
-
-        rect[0] = centers[idx_0]
-        rect[2] = centers[idx_2]
-        rect[6] = centers[idx_6]
-        rect[8] = centers[idx_8]
-
-        mask = np.ones(centers.shape[0], dtype=bool)
-        mask[[idx_0, idx_2, idx_6, idx_8]] = False
-        others = centers[mask]
-
-        idx_l = others[:, 0].argmin()
-        idx_r = others[:, 0].argmax()
-        idx_t = others[:, 1].argmin()
-        idx_b = others[:, 1].argmax()
-
-        found = np.array([idx_l, idx_r, idx_t, idx_b])
-        mask = np.isin(range(len(others)), found, invert=False)
-        idx_c = np.where(mask == False)[0]
-
-        if len(idx_c) == 1:
-            rect[1] = others[idx_t]
-            rect[3] = others[idx_l]
-            rect[4] = others[idx_c]
-            rect[5] = others[idx_r]
-            rect[7] = others[idx_b]
-
-            # 获取编号为5的矩形的中心坐标
-            cx_5, cy_5 = rect[4]  # rect[4] 对应编号为5的矩形
-
-            for i in range(9):
-                cx, cy = rect[i]
-                rel_cx, rel_cy = cx - cx_5, cy - cy_5  # 相对坐标
-                for c in cross_centers:
-                    if c[0] == cx and c[1] == cy:
-                        x, y, w, h, approx = c[2:]
-                        draw_rectangle(img_contour, cx, cy, x, y, w, h, approx, i)
-                        # 将矩形编号和中心坐标加入共享队列
-                        with lock:
-                            rect_centers.append((i + 1, rel_cx, rel_cy))
-                            condition.notify()
-                        break
-        else:
-            print("> 45 degree")
-    else:
-        cross_centers.sort(key=lambda c: (c[1], c[0]))
-
-        rects = [(x, y, x + w, y + h) for _, _, x, y, w, h, _ in cross_centers]
-        rects, _ = cv2.groupRectangles(rects, groupThreshold=1, eps=0.1)
-
-        for i, (x1, y1, x2, y2) in enumerate(rects):
-            w, h = x2 - x1, y2 - y1
-            cx, cy = x1 + w // 2, y1 + h // 2
-            approx = np.array([[[x1, y1]], [[x2, y1]], [[x2, y2]], [[x1, y2]]])
-            draw_rectangle(img_contour, cx, cy, x1, y1, w, h, approx, i)
-            # 将矩形编号和中心坐标加入共享队列
-            with lock:
-                rect_centers.append((i + 1, cx, cy))
-                condition.notify()
-
-
-def circle_detection(img, img_contour, max_area_limit, min_area_limit):
-    circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, dp=1.2, minDist=20,
-                               param1=50, param2=50, minRadius=5, maxRadius=50)
-
-    if circles is not None:
-        circles = np.round(circles[0, :]).astype("int")
-
-        filtered_circles = []
-        for (x, y, r) in circles:
-            area = np.pi * (r ** 2)
-            if min_area_limit <= area <= max_area_limit:
-                filtered_circles.append((x, y, r))
-
-        # 合并重叠的圆形
-        merged_circles = []
-        for (x, y, r) in filtered_circles:
-            merged = False
-            for i, (mx, my, mr) in enumerate(merged_circles):
-                if np.sqrt((x - mx) ** 2 + (y - my) ** 2) < (r + mr) / 2:
-                    merged_circles[i] = (int((x + mx) / 2), int((y + my) / 2), int((r + mr) / 2))
-                    merged = True
-                    break
-            if not merged:
-                merged_circles.append((x, y, r))
-
-        for (x, y, r) in merged_circles:
-            draw_circle(img_contour, x, y, r)
-
-
 def vision_thread(stop_event):
+    """视觉检测线程"""
     cap = cv2.VideoCapture(0)
-    scale = 1.3
+    scale = 1.5
     max_area_limit = 90000
     min_area_limit = 30
-    prev_centers = deque(maxlen=10)
+    historical_data = {}
+    frame_count = 0
 
     while not stop_event.is_set():
         success, img = cap.read()
@@ -297,27 +196,36 @@ def vision_thread(stop_event):
         imgBlur = cv2.GaussianBlur(imgGray, (5, 5), 1)
         imgCanny = cv2.Canny(imgBlur, 50, 150)
 
-        rectangle_detection(imgCanny, imgContour, prev_centers, max_area_limit, min_area_limit)
-        circle_detection(imgCanny, imgContour, max_area_limit, min_area_limit)
+        success, imgContour = camera.rectangle_detection(imgCanny, imgContour, max_area_limit, min_area_limit, historical_data, frame_count)
+
+        if success:
+            # 将排序后的矩形中心加入共享队列
+            with lock:
+                for i, rect in enumerate(camera.global_rectangles):
+                    rect_num, cx, cy = rect
+                    rel_cx, rel_cy = cx, cy
+                    rect_centers.append((i, rel_cx, rel_cy))
+                    print(rect_centers)
+                condition.notify_all()
 
         imgContour = resize_image(imgContour, scale)
-        cv2.imshow("Shape Detection", imgContour)
+        cv2.imshow("矩形检测", imgContour)
 
         # 检查KEY4是否被按下
-        if cv2.waitKey(1) & GPIO.input(KEY4) == 0:
-            time.sleep(0.01)
-            print("按键4被按下，退出程序")
-            stop_event.set()  # 设置停止事件
+        # if cv2.waitKey(1) & GPIO.input(KEY4) == 0:
+        #     time.sleep(0.01)
+        #     print("按键4被按下，退出程序")
+        #     stop_event.set()  # 设置停止事件
+        #     break
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-
-    cap.release()
-    cv2.destroyAllWindows()
 
     cap.release()
     cv2.destroyAllWindows()
 
 
 def control_thread():
+    """机械臂控制线程"""
     selected_number = key_module.select_grid()  # 获取选择的棋格编号
     print('***********')
     print(f'选择的棋格编号： {selected_number}')
@@ -328,7 +236,7 @@ def control_thread():
         if rect_centers:
             # 根据选择的棋格编号找到对应的 rect_center
             for rect_num, rel_cx, rel_cy in rect_centers:
-                if rect_num == selected_number:
+                if (rect_num + 1) == selected_number:
                     # 将浮点数转换为整数
                     int_cx = int(7074.3 - rel_cx * 5.96)
                     int_cy = int((831.81 - rel_cy) / 37.93)
@@ -345,9 +253,10 @@ def control_thread():
 
 
 def main():
+    """主程序入口"""
     i = 1
     while True:
-        print("请使用四按键模块选择要执行的题目")
+        print("请选择要执行的题目")
         time.sleep(0.1)
         if GPIO.input(KEY1) == 0:
             time.sleep(0.01)
@@ -380,17 +289,21 @@ def main():
                 vision.join()  # 等待视觉线程结束
                 control.join()  # 等待视觉线程结束
                 print("机械臂控制操作已完成")
-
         elif GPIO.input(KEY4) == 0:
             time.sleep(0.01)
-            print("按键4被按下，执行题(4)")
-            lhr()
+            while True:
+                print("按键4被按下，执行题(4)，请选择题号")
+                if GPIO.input(KEY5) == 0:
+                    time.sleep(0.01)
+                    # lhr1()
+                    break
+                elif GPIO.input(KEY6) == 0:
+                    time.sleep(0.01)
+                    # lhr2()
+                    break
             while GPIO.input(KEY4) == 0:
                 time.sleep(0.01)
-
-    # print('初始棋盘状态：')
-    # for row in board:
-        # print(row)
+            break
 
 
 if __name__ == "__main__":
